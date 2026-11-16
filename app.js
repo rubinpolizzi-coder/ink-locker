@@ -51,6 +51,7 @@ const S = {
   addingTo: null,       // deck id while picking cards
   lastDeck: null,
   shown: PAGE,
+  newKeys: new Set(),   // cards added by the latest update
   sheetKey: null,
 };
 
@@ -78,9 +79,14 @@ async function fetchJSON(url) {
   return r.json();
 }
 
-async function downloadCards({ silent } = {}) {
+let updating = false;
+async function downloadCards({ silent, manual } = {}) {
+  if (updating) return false;
+  updating = true;
   const box = $("#loading"); const bar = $("#loadBar"); const msg = $("#loadMsg");
-  if (!silent) box.hidden = false;
+  const btn = $("#updateBtn"), label = $("#updateLabel");
+  if (!silent && !manual) box.hidden = false;
+  btn.disabled = true; btn.classList.add("busy"); label.textContent = "Checking…";
   try {
     const sj = await fetchJSON(`${API}/sets`);
     const sets = (sj.results || sj).map(s => ({ code: s.code, name: s.name, released: s.released_at || s.prereleased_at || "" }))
@@ -88,23 +94,34 @@ async function downloadCards({ silent } = {}) {
     const all = [];
     for (let i = 0; i < sets.length; i++) {
       msg.textContent = `Downloading ${sets[i].name}… (${i + 1} of ${sets.length})`;
+      label.textContent = `${i + 1}/${sets.length}`;
       bar.style.width = `${Math.round((i / sets.length) * 100)}%`;
       const cj = await fetchJSON(`${API}/sets/${encodeURIComponent(sets[i].code)}/cards`);
       for (const c of (cj.results || cj)) all.push(slim(c));
       await sleep(110); // be polite to the free card service
     }
     bar.style.width = "100%";
-    const before = S.cards.length;
+    const oldKeys = new Set(S.byKey.keys()), oldSets = new Set(S.sets.map(s => s.code));
     S.cards = all; S.sets = sets; S.dataAt = Date.now();
     indexCards();
     await store.set("cards", { cards: all, sets, at: S.dataAt });
-    if (silent && before && all.length > before) toast(`${all.length - before} new cards added`);
+    if (oldKeys.size) {
+      const added = [...S.byKey.keys()].filter(k => !oldKeys.has(k));
+      const newSets = sets.filter(s => !oldSets.has(s.code)).map(s => s.name);
+      if (added.length) {
+        S.newKeys = new Set(added);
+        await store.set("newKeys", added).catch(() => {});
+        toast(`${added.length} new card${added.length === 1 ? "" : "s"} added${newSets.length ? ` from ${newSets.join(", ")}` : ""}. Filter by \"Newly added\" to see them.`);
+      } else if (manual) toast("You're up to date. No new cards yet.");
+    }
     return true;
   } catch (e) {
     if (!silent) toast(navigator.onLine ? "Couldn't reach the card list. Try again in a minute." : "You're offline. Connect once to download the card list.");
     return false;
   } finally {
-    box.hidden = true; renderAll();
+    box.hidden = true; updating = false;
+    btn.disabled = false; btn.classList.remove("busy"); label.textContent = "Update";
+    renderAll();
   }
 }
 
@@ -222,6 +239,7 @@ function filtered() {
       if (f.own === "missing" && i.own !== 0) return false;
       if (f.own === "free" && !(i.free > 0)) return false;
       if (f.own === "inuse" && !(i.tied > 0)) return false;
+      if (f.own === "new" && !S.newKeys.has(c.k)) return false;
     }
     return true;
   }).sort((a, b) => f.set ? (parseInt(a.num) || 0) - (parseInt(b.num) || 0) : 0);
@@ -231,6 +249,7 @@ function tileHTML(c, U, deck) {
   let left = "", right = "";
   if (deck) { const q = deck.cards[c.k] || 0; if (q) left = `<span class="b use">${q} in deck</span>`; }
   else if (i.tied) left = `<span class="b use">${i.tied} in use</span>`;
+  else if (S.newKeys.has(c.k)) left = `<span class="b new">New</span>`;
   if (i.own != null) right = i.own === 0 ? `<span class="b none">0</span>` : `<span class="b ${i.free ? "free" : ""}">${i.free}/${i.own}</span>`;
   return `<button type="button" class="tile${i.own === 0 ? " unowned" : ""}" data-k="${esc(c.k)}" aria-label="${esc(c.name)} ${esc(c.version)}">
     <div class="img"><div class="fallback">${esc(c.name)}</div>${c.sm ? `<img loading="lazy" decoding="async" src="${esc(c.sm)}" alt="" onerror="this.remove()">` : ""}${left || right ? `<div class="badges">${left || "<span></span>"}${right}</div>` : ""}</div>
@@ -463,7 +482,8 @@ $("#colImport").onclick = async () => {
   $("#colPaste").value = ""; $("#colFile").value = "";
   toast(`Collection replaced: ${Object.values(o.counts).reduce((s, q) => s + q, 0).toLocaleString()} cards`); renderAll();
 };
-$("#refreshData").onclick = () => downloadCards();
+$("#refreshData").onclick = () => downloadCards({ manual: true }).then(buildFilters);
+$("#updateBtn").onclick = () => downloadCards({ manual: true }).then(buildFilters);
 $("#backupSave").onclick = () => {
   const blob = new Blob([JSON.stringify({ app: "ink-locker", v: 1, at: Date.now(), decks: S.decks, collection: S.collection }, null, 1)], { type: "application/json" });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
@@ -523,7 +543,8 @@ new IntersectionObserver(es => { if (es[0].isIntersecting && renderCards.more &&
 
 /* ---------------- start ---------------- */
 (async function start() {
-  const [cd, decks, col] = await Promise.all([store.get("cards"), store.get("decks"), store.get("collection")]);
+  const [cd, decks, col, nk] = await Promise.all([store.get("cards"), store.get("decks"), store.get("collection"), store.get("newKeys")]);
+  if (Array.isArray(nk)) S.newKeys = new Set(nk);
   if (cd) { S.cards = cd.cards; S.sets = cd.sets; S.dataAt = cd.at; indexCards(); }
   S.decks = Array.isArray(decks) ? decks : []; S.collection = col || null;
   buildFilters(); route();
