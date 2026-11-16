@@ -17,7 +17,10 @@
 <div id="app">
   <header class="top">
     <div class="brand"><span class="mark" aria-hidden="true"></span>Ink Locker</div>
-    <div class="sync" id="syncNote"></div>
+    <div class="topright">
+      <div class="sync" id="syncNote"></div>
+      <button type="button" class="btn small" id="updateBtn" title="Check Lorcast for new cards"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg><span id="updateLabel">Update</span></button>
+    </div>
   </header>
 
   <div class="addbar" id="addBar" hidden>
@@ -42,6 +45,7 @@
             <option value="free">Have free copies</option>
             <option value="inuse">In a built deck</option>
             <option value="missing">Not owned</option>
+            <option value="new">Newly added</option>
           </select>
         </div>
         <div class="costrow" id="costFilter" role="group" aria-label="Filter by cost"></div>
