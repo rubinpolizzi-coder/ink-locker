@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ink Locker</title>
+<meta name="description" content="Your Lorcana collection, decks, and which cards are in use.">
+<meta name="theme-color" content="#11152a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Ink Locker</div>
+    <div class="sync" id="syncNote"></div>
+  </header>
+
+  <div class="addbar" id="addBar" hidden>
+    <span>Adding to <b id="addBarName"></b> · <span id="addBarCount"></span></span>
+    <button type="button" class="btn small primary" id="addBarDone">Done</button>
+  </div>
+
+  <main>
+    <!-- CARDS -->
+    <section id="v-cards" class="view">
+      <div class="filters">
+        <input type="search" id="q" placeholder="Search name, version, or rules text" autocomplete="off" aria-label="Search cards">
+        <div class="inkrow" id="inkFilter" role="group" aria-label="Filter by ink"></div>
+        <div class="row wrap">
+          <select id="setFilter" aria-label="Set"></select>
+          <select id="typeFilter" aria-label="Card type">
+            <option value="">All types</option><option>Character</option><option>Action</option><option>Song</option><option>Item</option><option>Location</option>
+          </select>
+          <select id="ownFilter" aria-label="Ownership">
+            <option value="">All cards</option>
+            <option value="owned">Owned</option>
+            <option value="free">Have free copies</option>
+            <option value="inuse">In a built deck</option>
+            <option value="missing">Not owned</option>
+          </select>
+        </div>
+        <div class="costrow" id="costFilter" role="group" aria-label="Filter by cost"></div>
+      </div>
+      <p class="count" id="resultCount"></p>
+      <div class="grid" id="grid"></div>
+      <div id="gridMore" class="sentinel"></div>
+    </section>
+
+    <!-- DECKS -->
+    <section id="v-decks" class="view" hidden>
+      <div class="row between">
+        <h1>Decks</h1>
+        <button type="button" class="btn primary" id="newDeck">New deck</button>
+      </div>
+      <div class="legend">
+        <span class="pill ok">Built</span> sleeved up, its cards count as in use
+        <span class="pill muted">Taken apart</span> cards are free again
+      </div>
+      <div id="deckList" class="decks"></div>
+    </section>
+
+    <!-- DECK EDITOR -->
+    <section id="v-deck" class="view" hidden>
+      <div class="row between">
+        <button type="button" class="btn ghost" id="deckBack">‹ Decks</button>
+        <div class="seg" role="group" aria-label="Deck status">
+          <button type="button" id="dBuilt" aria-pressed="false">Built</button>
+          <button type="button" id="dApart" aria-pressed="true">Taken apart</button>
+        </div>
+      </div>
+      <input type="text" id="dName" class="deckname" aria-label="Deck name" placeholder="Deck name">
+      <div id="deckStats"></div>
+      <div class="row wrap">
+        <button type="button" class="btn primary" id="dAdd">Add cards</button>
+        <button type="button" class="btn" id="dPaste">Paste a list</button>
+        <button type="button" class="btn" id="dCopy">Copy list</button>
+      </div>
+      <div id="deckCards"></div>
+      <div class="danger-zone" id="dDeleteZone"></div>
+    </section>
+
+    <!-- COLLECTION -->
+    <section id="v-collection" class="view" hidden>
+      <h1>Collection</h1>
+      <div class="panel">
+        <h2>Replace collection</h2>
+        <p class="hint">In Dreamborn, open your binder, then Menu → Export. Load that file here. Importing wipes the old counts and uses only the new file.</p>
+        <input type="file" id="colFile" accept=".csv,.txt,text/csv,text/plain" aria-label="Collection file">
+        <textarea id="colPaste" placeholder="…or paste the export here"></textarea>
+        <div class="row wrap"><button type="button" class="btn primary" id="colImport">Replace collection</button><span class="hint" id="colStatus"></span></div>
+      </div>
+      <div class="panel" id="colSummary"></div>
+      <div class="panel">
+        <h2>Card data</h2>
+        <p class="hint" id="dataStatus"></p>
+        <button type="button" class="btn" id="refreshData">Check for new cards</button>
+      </div>
+      <div class="panel">
+        <h2>Backup</h2>
+        <p class="hint">Your decks and collection are saved on this phone only. Save a backup file now and then, and use it to move everything to a new phone.</p>
+        <div class="row wrap">
+          <button type="button" class="btn" id="backupSave">Save backup file</button>
+          <label class="btn" for="backupLoad">Restore from backup</label>
+          <input type="file" id="backupLoad" accept=".json,application/json" hidden>
+        </div>
+        <p class="hint" id="backupStatus"></p>
+      </div>
+      <p class="fine">Card information and images come from Lorcast. Ink Locker is a personal fan tool and isn't made or endorsed by Disney or Ravensburger.</p>
+    </section>
+  </main>
+
+  <nav class="tabs" aria-label="Sections">
+    <a href="#cards" data-v="cards"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="11" height="15" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/></svg>Cards</a>
+    <a href="#decks" data-v="decks"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M8 7V4h8v3"/></svg>Decks</a>
+    <a href="#collection" data-v="collection"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h10l4 4v12H5z"/><path d="M9 12h6M9 16h6"/></svg>Collection</a>
+  </nav>
+</div>
+
+<dialog id="sheet" class="sheet" aria-label="Card details"><div id="sheetBody"></div></dialog>
+<dialog id="pasteDlg" class="sheet" aria-label="Paste a deck list">
+  <form method="dialog" id="pasteForm" class="panel flat">
+    <h2>Paste a deck list</h2>
+    <p class="hint">One card per line, count first, like Dreamborn's export: <code>4 Card Name - Version</code>. This replaces the deck's current list.</p>
+    <textarea id="pasteText" rows="10"></textarea>
+    <p class="hint warn" id="pasteErr"></p>
+    <div class="row"><button type="button" class="btn primary" id="pasteApply">Replace list</button><button type="button" class="btn ghost" id="pasteCancel">Cancel</button></div>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="loading" id="loading" hidden>
+  <div class="loadbox">
+    <div class="mark big" aria-hidden="true"></div>
+    <p id="loadMsg">Downloading the card list…</p>
+    <div class="bar"><i id="loadBar"></i></div>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
